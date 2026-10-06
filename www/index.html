@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#7aa83a" />
+  <title>宝宝作息</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-inner">
+      <h1 class="app-title">宝宝作息计划表</h1>
+      <div class="header-sub" id="headerSub"></div>
+    </div>
+  </header>
+
+  <main id="main">
+    <!-- 作息表 -->
+    <section class="page active" id="page-schedule">
+      <div class="toolbar">
+        <button class="btn btn-primary" id="btnNewDay">新的一天</button>
+        <button class="btn btn-ghost" id="btnAddRow">+ 添加一行</button>
+      </div>
+      <div class="hint">勾选表示已完成 · 点文字可直接修改 · 点铃铛设置每天提醒</div>
+      <div id="scheduleList" class="schedule-list"></div>
+    </section>
+
+    <!-- 早教安排 -->
+    <section class="page" id="page-edu">
+      <h2 class="page-title">早教安排</h2>
+      <div id="eduWrap" class="edu-wrap"></div>
+    </section>
+
+    <!-- 带养说明 -->
+    <section class="page" id="page-notes">
+      <h2 class="page-title">带养说明</h2>
+      <ol id="notesList" class="notes-list"></ol>
+    </section>
+  </main>
+
+  <nav class="tabbar">
+    <button class="tab active" data-tab="schedule">
+      <span class="tab-ico">📋</span><span class="tab-txt">作息表</span>
+    </button>
+    <button class="tab" data-tab="edu">
+      <span class="tab-ico">🧩</span><span class="tab-txt">早教安排</span>
+    </button>
+    <button class="tab" data-tab="notes">
+      <span class="tab-ico">💡</span><span class="tab-txt">带养说明</span>
+    </button>
+  </nav>
+
+  <div id="toast" class="toast"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

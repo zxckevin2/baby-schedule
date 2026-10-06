@@ -1,0 +1,8 @@
+{
+  "appId": "com.zhuangmingyou.babyschedule",
+  "appName": "宝宝作息",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  }
+}
