@@ -8,3 +8,4 @@ android/capacitor-cordova-android-plugins/build/
 *.log
 .DS_Store
 dist/
+.superpowers/
