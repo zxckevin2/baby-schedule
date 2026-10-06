@@ -1,6 +1,6 @@
 {
   "name": "baby-schedule",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
   "description": "育婴计划表 - 宝宝作息表",
   "scripts": {
@@ -10,6 +10,7 @@
     "apk": "cd android && gradlew.bat assembleDebug"
   },
   "dependencies": {
+    "@capacitor-community/native-audio": "^7.0.1",
     "@capacitor/android": "^7.0.0",
     "@capacitor/core": "^7.0.0",
     "@capacitor/local-notifications": "^7.0.0",

@@ -8,51 +8,29 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
+  <div class="bg-blobs"></div>
+
   <header class="app-header">
-    <div class="header-inner">
-      <h1 class="app-title">宝宝作息计划表</h1>
-      <div class="header-sub" id="headerSub"></div>
-    </div>
+    <div class="header-title">宝宝作息</div>
+    <div class="header-date" id="headerDate"></div>
   </header>
 
   <main id="main">
-    <!-- 作息表 -->
-    <section class="page active" id="page-schedule">
-      <div class="toolbar">
-        <button class="btn btn-primary" id="btnNewDay">新的一天</button>
-        <button class="btn btn-ghost" id="btnAddRow">+ 添加一行</button>
-      </div>
-      <div class="hint">勾选表示已完成 · 点文字可直接修改 · 点铃铛设置每天提醒</div>
-      <div id="scheduleList" class="schedule-list"></div>
-    </section>
-
-    <!-- 早教安排 -->
-    <section class="page" id="page-edu">
-      <h2 class="page-title">早教安排</h2>
-      <div id="eduWrap" class="edu-wrap"></div>
-    </section>
-
-    <!-- 带养说明 -->
-    <section class="page" id="page-notes">
-      <h2 class="page-title">带养说明</h2>
-      <ol id="notesList" class="notes-list"></ol>
-    </section>
+    <section class="page active" id="page-schedule"></section>
+    <section class="page" id="page-edu"></section>
+    <section class="page" id="page-notes"></section>
   </main>
 
+  <button class="fab" id="fabSleep" type="button" aria-label="哄睡">🌙</button>
+
   <nav class="tabbar">
-    <button class="tab active" data-tab="schedule">
-      <span class="tab-ico">📋</span><span class="tab-txt">作息表</span>
-    </button>
-    <button class="tab" data-tab="edu">
-      <span class="tab-ico">🧩</span><span class="tab-txt">早教安排</span>
-    </button>
-    <button class="tab" data-tab="notes">
-      <span class="tab-ico">💡</span><span class="tab-txt">带养说明</span>
-    </button>
+    <button class="tab active" data-tab="schedule" type="button"><span class="tab-ico">📋</span><span class="tab-txt">作息</span></button>
+    <button class="tab" data-tab="edu" type="button"><span class="tab-ico">🧩</span><span class="tab-txt">早教</span></button>
+    <button class="tab" data-tab="notes" type="button"><span class="tab-ico">💡</span><span class="tab-txt">带养</span></button>
   </nav>
 
   <div id="toast" class="toast"></div>
 
-  <script src="app.js"></script>
+  <script type="module" src="js/app.js"></script>
 </body>
 </html>
