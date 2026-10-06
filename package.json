@@ -1,6 +1,6 @@
 {
   "name": "baby-schedule",
-  "version": "2.0.1",
+  "version": "2.1.0",
   "private": true,
   "description": "育婴计划表 - 宝宝作息表",
   "scripts": {
@@ -13,8 +13,11 @@
     "@capacitor-community/native-audio": "^7.0.1",
     "@capacitor/android": "^7.0.0",
     "@capacitor/core": "^7.0.0",
+    "@capacitor/filesystem": "^7.1.9",
+    "@capacitor/haptics": "^7.0.5",
     "@capacitor/local-notifications": "^7.0.0",
-    "@capacitor/preferences": "^7.0.0"
+    "@capacitor/preferences": "^7.0.0",
+    "@capacitor/share": "^7.0.4"
   },
   "devDependencies": {
     "@capacitor/cli": "^7.0.0"

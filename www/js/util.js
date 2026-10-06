@@ -54,6 +54,42 @@ export function debounce(fn, ms = 250) {
   };
 }
 
+export function ageMonths(birthday) {
+  if (!birthday) return null;
+  const b = new Date(birthday + 'T00:00:00');
+  if (isNaN(b.getTime())) return null;
+  const now = new Date();
+  let months = (now.getFullYear() - b.getFullYear()) * 12 + (now.getMonth() - b.getMonth());
+  if (now.getDate() < b.getDate()) months -= 1;
+  return Math.max(0, months);
+}
+
+export function ageLabel(birthday) {
+  const m = ageMonths(birthday);
+  if (m == null) return '';
+  if (m < 1) {
+    const b = new Date(birthday + 'T00:00:00');
+    const days = Math.max(0, Math.floor((Date.now() - b.getTime()) / 86400000));
+    return days + ' 天';
+  }
+  return m + ' 个月';
+}
+
+export function suggestTemplateId(birthday) {
+  const m = ageMonths(birthday);
+  if (m == null) return null;
+  if (m < 3) return 'm2';
+  if (m < 4) return 'm3';
+  return 'm45';
+}
+
+export function fullDateLabel(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  if (isNaN(d.getTime())) return dateStr;
+  const w = ['日', '一', '二', '三', '四', '五', '六'][d.getDay()];
+  return `${d.getMonth() + 1}月${d.getDate()}日 周${w}`;
+}
+
 let toastTimer = null;
 export function toast(msg) {
   const el = document.getElementById('toast');

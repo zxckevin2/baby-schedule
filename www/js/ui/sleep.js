@@ -3,6 +3,7 @@
 import { h, toast } from '../util.js';
 import * as store from '../store.js';
 import * as audio from '../audio.js';
+import * as haptics from '../haptics.js';
 
 let backdrop = null;
 let sheet = null;
@@ -66,6 +67,7 @@ export function mount() {
   });
   refs.loopChip = h('button', { class: 'tchip', type: 'button', text: '🔁 循环' });
   refs.loopChip.addEventListener('click', () => {
+    haptics.tap();
     const on = !audio.getLoop();
     audio.setLoop(on);
     store.getState().settings.loop = on;
@@ -99,6 +101,7 @@ export function close() {
 }
 
 async function onTogglePlay() {
+  haptics.tap();
   if (!audio.isReady()) await audio.init(store.getState().settings);
   await audio.toggle();
   refreshPlay();
@@ -125,6 +128,7 @@ function fmt(sec) {
 }
 
 function setTimer(min) {
+  haptics.tap();
   if (timerHandle) { clearTimeout(timerHandle); timerHandle = null; }
   remainingSec = min * 60;
   store.getState().settings.sleepTimerMin = min;

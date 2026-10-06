@@ -1,10 +1,11 @@
-// 状态管理：加载/保存/迁移、每日重置、软删除、结构操作
+// 状态管理：加载/保存/迁移(v3→v4)、每日重置、软删除、历史归档、宝宝信息
 
 import { TEMPLATES } from './templates.js';
-import { todayStr } from './util.js';
+import { todayStr, suggestTemplateId } from './util.js';
 
-const KEY = 'baby_schedule_v3';
-const VERSION = 3;
+const KEY_V4 = 'baby_schedule_v4';
+const KEY_V3 = 'baby_schedule_v3';
+const VERSION = 4;
 
 let state = null;
 let saveTimer = null;
@@ -12,17 +13,15 @@ let saveTimer = null;
 function prefsPlugin() {
   return (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Preferences) || null;
 }
-
-async function readRaw() {
+async function readRaw(key) {
   const p = prefsPlugin();
-  if (p) { try { const r = await p.get({ key: KEY }); return r.value; } catch (e) { } }
-  try { return localStorage.getItem(KEY); } catch (e) { return null; }
+  if (p) { try { const r = await p.get({ key }); return r.value; } catch (e) { } }
+  try { return localStorage.getItem(key); } catch (e) { return null; }
 }
-
-async function writeRaw(v) {
+async function writeRaw(key, v) {
   const p = prefsPlugin();
-  if (p) { try { await p.set({ key: KEY, value: v }); return; } catch (e) { } }
-  try { localStorage.setItem(KEY, v); } catch (e) { }
+  if (p) { try { await p.set({ key, value: v }); return; } catch (e) { } }
+  try { localStorage.setItem(key, v); } catch (e) { }
 }
 
 // ---------- 构建 ----------
@@ -45,6 +44,10 @@ function buildTemplate(def, seq) {
   return { id: def.id, name: def.name, schedule, notes: def.notes.slice(), edu };
 }
 
+function defaultSettings() {
+  return { volume: 0.7, loop: true, sleepTimerMin: 30, theme: 'auto', haptics: true, autoAge: true, manualPickDate: '' };
+}
+
 function freshState() {
   const seq = { n: 0 };
   const templates = {};
@@ -55,7 +58,9 @@ function freshState() {
     activeTemplate: 'm3',
     templates,
     date: todayStr(),
-    settings: { volume: 0.7, loop: true, sleepTimerMin: 30 }
+    settings: defaultSettings(),
+    baby: { name: '', gender: '', birthday: '' },
+    history: {}
   };
 }
 
@@ -114,11 +119,45 @@ function normalize(data) {
     };
   }
   const active = (data.activeTemplate && out[data.activeTemplate]) ? data.activeTemplate : 'm3';
-  const settings = Object.assign({ volume: 0.7, loop: true, sleepTimerMin: 30 }, data.settings || {});
+  const settings = Object.assign(defaultSettings(), data.settings || {});
+  const baby = Object.assign({ name: '', gender: '', birthday: '' }, data.baby || {});
+  const history = (data.history && typeof data.history === 'object') ? data.history : {};
   return {
     version: VERSION, seq: seq.n, activeTemplate: active, templates: out,
-    date: data.date || todayStr(), settings
+    date: data.date || todayStr(), settings, baby, history
   };
+}
+
+// ---------- 历史 ----------
+
+function snapshot(data) {
+  const t = data.templates[data.activeTemplate];
+  if (!t) return null;
+  const rows = t.schedule.filter((r) => !r.deleted).map((r) => ({
+    time: r.time,
+    feedType: r.feed.type,
+    amountMl: r.feed.amountMl,
+    sleep: r.sleep.label,
+    done: !!r.done,
+    plays: r.play.map((p) => ({ text: p.text, done: !!p.done }))
+  }));
+  const edu = t.edu.map((s) => ({ title: s.title, items: s.items.map((i) => ({ text: i.text, done: !!i.done })) }));
+  return { templateId: t.id, templateName: t.name, rows, edu, archivedAt: Date.now() };
+}
+
+function hasActivity(snap) {
+  if (!snap) return false;
+  const rowAct = snap.rows.some((r) => r.done || (r.amountMl != null) || r.plays.some((p) => p.done));
+  const eduAct = snap.edu.some((s) => s.items.some((i) => i.done));
+  return rowAct || eduAct;
+}
+
+function archive(data) {
+  const snap = snapshot(data);
+  if (hasActivity(snap)) {
+    data.history = data.history || {};
+    data.history[data.date] = snap;
+  }
 }
 
 // ---------- 每日重置 ----------
@@ -127,7 +166,7 @@ function resetDay(data) {
   for (const t of Object.values(data.templates)) {
     for (const r of t.schedule) {
       r.done = false;
-      r.deleted = false;            // 恢复被删除的内置行
+      r.deleted = false;
       for (const p of r.play) p.done = false;
     }
     for (const s of t.edu) for (const it of s.items) it.done = false;
@@ -138,43 +177,59 @@ function resetDay(data) {
 // ---------- 生命周期 ----------
 
 export async function load() {
-  const raw = await readRaw();
+  let raw = await readRaw(KEY_V4);
   let data = null;
   if (raw) { try { data = JSON.parse(raw); } catch (e) { data = null; } }
-  if (!data || data.version !== VERSION || !data.templates) {
-    data = freshState();
-  } else {
-    data = normalize(data);
+
+  if (!data || !data.templates) {
+    // 尝试从 v3 迁移
+    const old = await readRaw(KEY_V3);
+    if (old) { try { const d = JSON.parse(old); if (d && d.templates) data = d; } catch (e) { } }
   }
-  if (data.date !== todayStr()) resetDay(data);
+  if (!data || !data.templates) data = freshState();
+  else data = normalize(data);
+
+  // 跨天：先归档昨天，再重置
+  if (data.date !== todayStr()) { archive(data); resetDay(data); }
+
+  // 月龄自动推进（当天未手动选过模板时）
+  if (data.settings.autoAge && data.baby.birthday && data.settings.manualPickDate !== todayStr()) {
+    const sug = suggestTemplateId(data.baby.birthday);
+    if (sug && data.templates[sug] && sug !== data.activeTemplate) {
+      data.activeTemplate = sug;
+      data._autoSwitched = data.templates[sug].name;
+    }
+  }
+
   state = data;
+  saveNow();
   return state;
 }
 
 export function getState() { return state; }
-
 export function activeTemplate() { return state.templates[state.activeTemplate]; }
-
 export function getTemplate(id) { return state.templates[id]; }
-
 export function nextId() { return ++state.seq; }
 
 export function save() {
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = setTimeout(saveNow, 250);
 }
-
 export function saveNow() {
   if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
   if (!state) return;
-  writeRaw(JSON.stringify(state));
+  writeRaw(KEY_V4, JSON.stringify(state));
 }
 
-export function setActive(id) {
-  if (state.templates[id]) { state.activeTemplate = id; saveNow(); }
+export function setActive(id, manual) {
+  if (!state.templates[id]) return;
+  state.activeTemplate = id;
+  if (manual) state.settings.manualPickDate = todayStr();
+  saveNow();
 }
 
 export function newDay() {
+  archive(state);
   resetDay(state);
   saveNow();
 }
@@ -205,4 +260,23 @@ export function addPlayItem(rowId, text) {
   r.play.push(it);
   saveNow();
   return it;
+}
+
+export function setSetting(key, value) {
+  state.settings[key] = value;
+  saveNow();
+}
+
+export function setBaby(patch) {
+  state.baby = Object.assign({}, state.baby, patch);
+  saveNow();
+}
+
+export function getHistoryList() {
+  return Object.keys(state.history)
+    .sort((a, b) => (a < b ? 1 : -1))
+    .map((date) => ({ date, snap: state.history[date] }));
+}
+export function deleteHistory(date) {
+  if (state.history[date]) { delete state.history[date]; saveNow(); }
 }

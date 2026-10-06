@@ -2,14 +2,14 @@
 
 import { h, normTime, promptInput } from '../util.js';
 import * as store from '../store.js';
+import * as haptics from '../haptics.js';
+import * as widget from '../widget.js';
 import { FEED_PRESETS, SLEEP_PRESETS } from '../templates.js';
 import { ensurePermission, syncAll } from '../notifications.js';
 
 let root = null;
 
-export function mount(container) {
-  root = container;
-}
+export function mount(container) { root = container; }
 
 export function render() {
   if (!root) return;
@@ -18,27 +18,30 @@ export function render() {
   root.appendChild(renderBar(t));
   const list = h('div', { class: 'schedule-list' });
   const rows = t.schedule.filter((r) => !r.deleted);
-  if (!rows.length) {
-    list.appendChild(h('div', { class: 'empty', text: '暂无安排，点「＋ 添加一行」开始' }));
-  }
+  if (!rows.length) list.appendChild(h('div', { class: 'empty', text: '暂无安排，点「＋ 添加一行」开始' }));
   rows.forEach((row) => list.appendChild(renderCard(row, t)));
   root.appendChild(list);
+  widget.update();
 }
 
 function progress(t) {
   const rows = t.schedule.filter((r) => !r.deleted);
-  const done = rows.filter((r) => r.done).length;
-  return { done, total: rows.length };
+  return { done: rows.filter((r) => r.done).length, total: rows.length };
 }
 
 function renderBar(t) {
   const bar = h('div', { class: 'page-bar' });
 
   const chips = h('div', { class: 'template-chips' });
-  for (const id of Object.keys(store.getState().templates)) {
-    const name = store.getState().templates[id].name;
-    const c = h('button', { class: 'tchip' + (id === store.getState().activeTemplate ? ' on' : ''), type: 'button', text: name });
-    c.addEventListener('click', () => { store.setActive(id); render(); });
+  const templates = store.getState().templates;
+  for (const id of Object.keys(templates)) {
+    const c = h('button', { class: 'tchip' + (id === store.getState().activeTemplate ? ' on' : ''), type: 'button', text: templates[id].name });
+    c.addEventListener('click', () => {
+      haptics.tap();
+      store.setActive(id, true);
+      render();
+      syncAll(store.getState());
+    });
     chips.appendChild(c);
   }
   bar.appendChild(chips);
@@ -48,9 +51,9 @@ function renderBar(t) {
 
   const tools = h('div', { class: 'toolbar' });
   const newDay = h('button', { class: 'btn btn-primary', type: 'button', text: '新的一天' });
-  newDay.addEventListener('click', () => { store.newDay(); render(); syncAll(store.getState()); });
+  newDay.addEventListener('click', () => { haptics.tap(); store.newDay(); render(); syncAll(store.getState()); });
   const add = h('button', { class: 'btn btn-ghost', type: 'button', text: '＋ 添加一行' });
-  add.addEventListener('click', () => { const row = store.addRow(); render(); focusTime(row.id); });
+  add.addEventListener('click', () => { haptics.tap(); const row = store.addRow(); render(); focusTime(row.id); });
   tools.appendChild(newDay);
   tools.appendChild(add);
   bar.appendChild(tools);
@@ -73,6 +76,7 @@ function singleSelectChips(values, current, onPick) {
     const c = h('button', { class: 'chip' + (val === current ? ' on' : ''), type: 'button', text: val || '—' });
     c.addEventListener('click', () => {
       if (val === current) return;
+      haptics.tap();
       current = val;
       wrap.querySelectorAll('.chip').forEach((x) => x.classList.remove('on'));
       c.classList.add('on');
@@ -87,16 +91,17 @@ function singleSelectChips(values, current, onPick) {
 function renderCard(row, t) {
   const card = h('div', { class: 'card' + (row.done ? ' done' : ''), 'data-id': row.id });
 
-  // 顶行
   const top = h('div', { class: 'card-top' });
   const cb = h('input', { type: 'checkbox' });
   cb.checked = row.done;
   const check = h('label', { class: 'check' }, cb, h('span', { class: 'box' }));
   cb.addEventListener('change', () => {
+    haptics.tap();
     row.done = cb.checked;
     card.classList.toggle('done', row.done);
     store.save();
     refreshProgress();
+    widget.update();
   });
   top.appendChild(check);
 
@@ -105,6 +110,7 @@ function renderCard(row, t) {
     row.time = time.value;
     store.save();
     syncAll(store.getState());
+    widget.update();
   });
   top.appendChild(time);
 
@@ -112,10 +118,11 @@ function renderCard(row, t) {
   const bellIco = h('span', { class: 'ico', text: '🔔' });
   bell.appendChild(bellIco);
   bell.addEventListener('click', async () => {
+    haptics.tap();
     if (!row.remind) {
       const ok = await ensurePermission();
       if (!ok) return;
-      if (!row.time) { return; }
+      if (!row.time) return;
       row.remind = true;
     } else {
       row.remind = false;
@@ -127,13 +134,13 @@ function renderCard(row, t) {
   top.appendChild(bell);
 
   const del = h('button', { class: 'icon-btn del', type: 'button' }, h('span', { class: 'ico', text: '🗑' }));
-  del.addEventListener('click', () => { store.softDeleteRow(row.id); render(); syncAll(store.getState()); });
+  del.addEventListener('click', () => { haptics.tap(); store.softDeleteRow(row.id); render(); syncAll(store.getState()); });
   top.appendChild(del);
   card.appendChild(top);
 
   // 吃
   const feedRow = h('div', { class: 'frow' }, h('span', { class: 'flabel', text: '吃' }));
-  feedRow.appendChild(singleSelectChips(FEED_PRESETS, row.feed.type, (v) => { row.feed.type = v; store.save(); }));
+  feedRow.appendChild(singleSelectChips(FEED_PRESETS, row.feed.type, (v) => { row.feed.type = v; store.save(); widget.update(); }));
   card.appendChild(feedRow);
 
   // 奶量滑块独占一行，与胶囊左对齐
@@ -145,6 +152,7 @@ function renderCard(row, t) {
     amtLabel.textContent = v > 0 ? v + 'ml' : '—';
     store.save();
   });
+  slider.addEventListener('change', () => widget.update());
   const sliderRow = h('div', { class: 'frow' },
     h('span', { class: 'flabel', text: '' }),
     h('span', { class: 'slwrap' }, h('span', { class: 'sl', text: '奶量' }), slider, amtLabel));
@@ -156,6 +164,7 @@ function renderCard(row, t) {
   row.play.forEach((item) => {
     const c = h('button', { class: 'chip play' + (item.done ? ' done' : ''), type: 'button', text: item.text });
     c.addEventListener('click', () => {
+      haptics.tap();
       item.done = !item.done;
       c.classList.toggle('done', item.done);
       store.save();
@@ -164,6 +173,7 @@ function renderCard(row, t) {
   });
   const addPlay = h('button', { class: 'chip add', type: 'button', text: '＋' });
   addPlay.addEventListener('click', async () => {
+    haptics.tap();
     const txt = await promptInput({ title: '添加陪玩项', placeholder: '如：抓握沙锤' });
     if (txt) { store.addPlayItem(row.id, txt); render(); }
   });
@@ -173,9 +183,10 @@ function renderCard(row, t) {
 
   // 睡
   const sleepRow = h('div', { class: 'frow' }, h('span', { class: 'flabel', text: '睡' }));
-  const sleepChips = singleSelectChips(SLEEP_PRESETS, row.sleep.label, (v) => { row.sleep.label = v; store.save(); });
+  const sleepChips = singleSelectChips(SLEEP_PRESETS, row.sleep.label, (v) => { row.sleep.label = v; store.save(); widget.update(); });
   const addSleep = h('button', { class: 'chip add', type: 'button', text: '＋' });
   addSleep.addEventListener('click', async () => {
+    haptics.tap();
     const txt = await promptInput({ title: '自定义睡眠时长', placeholder: '如：1小时20分' });
     if (txt) { row.sleep.label = txt; store.save(); render(); }
   });

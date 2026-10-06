@@ -2,6 +2,7 @@
 
 import { h } from '../util.js';
 import * as store from '../store.js';
+import * as haptics from '../haptics.js';
 
 let root = null;
 export function mount(c) { root = c; }
@@ -16,7 +17,12 @@ export function render() {
     const tags = h('div', { class: 'chips' });
     sec.items.forEach((it) => {
       const c = h('button', { class: 'chip' + (it.done ? ' done' : ''), type: 'button', text: it.text });
-      c.addEventListener('click', () => { it.done = !it.done; c.classList.toggle('done', it.done); store.save(); });
+      c.addEventListener('click', () => {
+        haptics.tap();
+        it.done = !it.done;
+        c.classList.toggle('done', it.done);
+        store.save();
+      });
       tags.appendChild(c);
     });
     card.appendChild(tags);

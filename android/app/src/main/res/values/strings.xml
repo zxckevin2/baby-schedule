@@ -4,4 +4,5 @@
     <string name="title_activity_main">宝宝作息</string>
     <string name="package_name">com.zhuangmingyou.babyschedule</string>
     <string name="custom_url_scheme">com.zhuangmingyou.babyschedule</string>
+    <string name="widget_description">显示今日完成进度与下一项安排</string>
 </resources>
