@@ -109,7 +109,7 @@ function renderCard(row, t) {
   top.appendChild(time);
 
   const bell = h('button', { class: 'icon-btn bell' + (row.remind ? ' on' : ''), type: 'button' });
-  const bellIco = h('span', { class: 'ico', text: row.remind ? '🔔' : '🔕' });
+  const bellIco = h('span', { class: 'ico', text: '🔔' });
   bell.appendChild(bellIco);
   bell.addEventListener('click', async () => {
     if (!row.remind) {
@@ -121,7 +121,6 @@ function renderCard(row, t) {
       row.remind = false;
     }
     bell.classList.toggle('on', row.remind);
-    bellIco.textContent = row.remind ? '🔔' : '🔕';
     store.save();
     await syncAll(store.getState());
   });
@@ -135,6 +134,9 @@ function renderCard(row, t) {
   // 吃
   const feedRow = h('div', { class: 'frow' }, h('span', { class: 'flabel', text: '吃' }));
   feedRow.appendChild(singleSelectChips(FEED_PRESETS, row.feed.type, (v) => { row.feed.type = v; store.save(); }));
+  card.appendChild(feedRow);
+
+  // 奶量滑块独占一行，与胶囊左对齐
   const amtLabel = h('span', { class: 'sl-val', text: row.feed.amountMl ? row.feed.amountMl + 'ml' : '—' });
   const slider = h('input', { type: 'range', min: '0', max: '240', step: '10', value: String(row.feed.amountMl || 0) });
   slider.addEventListener('input', () => {
@@ -143,8 +145,10 @@ function renderCard(row, t) {
     amtLabel.textContent = v > 0 ? v + 'ml' : '—';
     store.save();
   });
-  feedRow.appendChild(h('span', { class: 'slwrap' }, h('span', { class: 'sl', text: '奶量' }), slider, amtLabel));
-  card.appendChild(feedRow);
+  const sliderRow = h('div', { class: 'frow' },
+    h('span', { class: 'flabel', text: '' }),
+    h('span', { class: 'slwrap' }, h('span', { class: 'sl', text: '奶量' }), slider, amtLabel));
+  card.appendChild(sliderRow);
 
   // 陪玩
   const playRow = h('div', { class: 'frow' }, h('span', { class: 'flabel', text: '陪玩' }));
