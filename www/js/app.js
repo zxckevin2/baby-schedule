@@ -2,12 +2,13 @@ import * as store from './store.js';
 import * as notifications from './notifications.js';
 import * as audio from './audio.js';
 import * as widget from './widget.js';
+import * as record from './ui/record.js';
 import * as schedule from './ui/schedule.js';
 import * as edu from './ui/edu.js';
 import * as notes from './ui/notes.js';
-import * as history from './ui/history.js';
+import * as charts from './ui/charts.js';
+import * as mine from './ui/mine.js';
 import * as sleep from './ui/sleep.js';
-import * as settings from './ui/settings.js';
 import { applyTheme, watchSystemTheme } from './theme.js';
 import { dateLabel, toast } from './util.js';
 
@@ -18,21 +19,35 @@ async function boot() {
   applyTheme();
   watchSystemTheme();
 
-  schedule.mount(document.getElementById('page-schedule'));
-  edu.mount(document.getElementById('page-edu'));
-  notes.mount(document.getElementById('page-notes'));
-  history.mount(document.getElementById('page-history'));
+  record.mount(document.getElementById('page-record'));
+  schedule.mount(document.getElementById('sub-schedule'));
+  edu.mount(document.getElementById('sub-edu'));
+  notes.mount(document.getElementById('sub-notes'));
+  charts.mount(document.getElementById('page-charts'));
+  mine.mount(document.getElementById('page-mine'));
   sleep.mount();
-  settings.mount({ onChanged: () => { applyTheme(); schedule.render(); } });
 
   document.getElementById('headerDate').textContent =
     dateLabel() + (st.baby && st.baby.name ? ' · ' + st.baby.name : '');
 
-  const tabs = {
+  // 作息页内 子标签
+  const subRenders = { 'sub-schedule': () => schedule.render(), 'sub-edu': () => edu.render(), 'sub-notes': () => notes.render() };
+  document.querySelectorAll('.subtab').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.subtab').forEach((b) => b.classList.remove('on'));
+      document.querySelectorAll('.subpage').forEach((p) => p.classList.remove('active'));
+      btn.classList.add('on');
+      const id = btn.dataset.sub;
+      document.getElementById(id).classList.add('active');
+      if (subRenders[id]) subRenders[id]();
+    });
+  });
+
+  const renders = {
+    record: () => record.render(),
     schedule: () => schedule.render(),
-    edu: () => edu.render(),
-    notes: () => notes.render(),
-    history: () => { history.reset(); history.render(); }
+    charts: () => charts.render(),
+    mine: () => mine.render()
   };
   document.querySelectorAll('.tab').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -43,17 +58,18 @@ async function boot() {
       const page = document.getElementById('page-' + key);
       page.classList.add('active');
       page.scrollTop = 0;
-      if (tabs[key]) tabs[key]();
+      if (renders[key]) renders[key]();
     });
   });
 
+  record.render();
   schedule.render();
   edu.render();
   notes.render();
-  history.render();
+  charts.render();
+  mine.render();
 
   document.getElementById('fabSleep').addEventListener('click', () => sleep.open());
-  document.getElementById('btnSettings').addEventListener('click', () => settings.open());
 
   audio.init(store.getState().settings).catch(() => { });
   notifications.syncAll(store.getState());

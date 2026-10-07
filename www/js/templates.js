@@ -11,6 +11,7 @@ export const TEMPLATES = [
   {
     id: 'm2',
     name: '2月龄',
+    refs: { sleep: [15, 18], milk: [600, 800], feeds: 7 },
     schedule: [
       { time: '07:30', feed: '喂奶', play: ['洗漱', '黑白卡片', '被动操', '吃D或AD'], sleep: '1-1.5小时' },
       { time: '10:00', feed: '喂奶', play: ['读故事', '听音乐', '俯卧抬头', '排气操'], sleep: '1小时' },
@@ -45,6 +46,7 @@ export const TEMPLATES = [
   {
     id: 'm3',
     name: '3月龄',
+    refs: { sleep: [15, 18], milk: [700, 900], feeds: 6 },
     schedule: [
       { time: '07:30', feed: '喂奶', play: ['洗漱', '彩色卡片', '被动操', '练抓握'], sleep: '40-60分钟' },
       { time: '10:00', feed: '喂奶', play: ['读故事', '听音乐', '俯卧抬头', '练翻身'], sleep: '40-60分钟' },
@@ -79,6 +81,7 @@ export const TEMPLATES = [
   {
     id: 'm45',
     name: '4-5月龄',
+    refs: { sleep: [14, 17], milk: [800, 1000], feeds: 5 },
     schedule: [
       { time: '07:30', feed: '喂奶', play: ['洗漱', '彩色卡片', '被动操', '抬头翻身'], sleep: '40-60分钟' },
       { time: '11:00', feed: '喂奶', play: ['读故事', '练抓握', '俯卧抬头', '学坐'], sleep: '1.5-2小时' },

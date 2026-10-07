@@ -3,9 +3,10 @@
 import { TEMPLATES } from './templates.js';
 import { todayStr, suggestTemplateId } from './util.js';
 
+const KEY_V5 = 'baby_schedule_v5';
 const KEY_V4 = 'baby_schedule_v4';
 const KEY_V3 = 'baby_schedule_v3';
-const VERSION = 4;
+const VERSION = 5;
 
 let state = null;
 let saveTimer = null;
@@ -41,7 +42,7 @@ function buildTemplate(def, seq) {
     title: s.title,
     items: s.items.map((txt) => ({ id: ++seq.n, text: txt, done: false }))
   }));
-  return { id: def.id, name: def.name, schedule, notes: def.notes.slice(), edu };
+  return { id: def.id, name: def.name, refs: def.refs || null, schedule, notes: def.notes.slice(), edu };
 }
 
 function defaultSettings() {
@@ -60,7 +61,9 @@ function freshState() {
     date: todayStr(),
     settings: defaultSettings(),
     baby: { name: '', gender: '', birthday: '' },
-    history: {}
+    history: {},
+    records: {},
+    growth: {}
   };
 }
 
@@ -113,6 +116,7 @@ function normalize(data) {
     out[def.id] = {
       id: def.id,
       name: def.name,
+      refs: def.refs || null,
       schedule: Array.isArray(src.schedule) ? src.schedule.map((r) => normRow(r, seq)) : [],
       notes: (src.notes && src.notes.length) ? src.notes : def.notes.slice(),
       edu: normEdu(src.edu, def, seq)
@@ -122,10 +126,26 @@ function normalize(data) {
   const settings = Object.assign(defaultSettings(), data.settings || {});
   const baby = Object.assign({ name: '', gender: '', birthday: '' }, data.baby || {});
   const history = (data.history && typeof data.history === 'object') ? data.history : {};
+  const records = normRecords(data.records);
+  const growth = normRecords(data.growth);
   return {
     version: VERSION, seq: seq.n, activeTemplate: active, templates: out,
-    date: data.date || todayStr(), settings, baby, history
+    date: data.date || todayStr(), settings, baby, history, records, growth
   };
+}
+
+function normRecords(obj) {
+  const out = {};
+  if (obj && typeof obj === 'object') {
+    for (const k of Object.keys(obj)) {
+      const r = obj[k];
+      if (r && typeof r === 'object') {
+        const id = (typeof r.id === 'number' && r.id > 0) ? r.id : Number(k) || null;
+        if (id) out[id] = Object.assign({}, r, { id });
+      }
+    }
+  }
+  return out;
 }
 
 // ---------- 历史 ----------
@@ -177,14 +197,11 @@ function resetDay(data) {
 // ---------- 生命周期 ----------
 
 export async function load() {
-  let raw = await readRaw(KEY_V4);
   let data = null;
-  if (raw) { try { data = JSON.parse(raw); } catch (e) { data = null; } }
-
-  if (!data || !data.templates) {
-    // 尝试从 v3 迁移
-    const old = await readRaw(KEY_V3);
-    if (old) { try { const d = JSON.parse(old); if (d && d.templates) data = d; } catch (e) { } }
+  for (const key of [KEY_V5, KEY_V4, KEY_V3]) {
+    const raw = await readRaw(key);
+    if (!raw) continue;
+    try { const d = JSON.parse(raw); if (d && d.templates) { data = d; break; } } catch (e) { }
   }
   if (!data || !data.templates) data = freshState();
   else data = normalize(data);
@@ -218,7 +235,7 @@ export function save() {
 export function saveNow() {
   if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
   if (!state) return;
-  writeRaw(KEY_V4, JSON.stringify(state));
+  writeRaw(KEY_V5, JSON.stringify(state));
 }
 
 export function setActive(id, manual) {
@@ -279,4 +296,73 @@ export function getHistoryList() {
 }
 export function deleteHistory(date) {
   if (state.history[date]) { delete state.history[date]; saveNow(); }
+}
+
+// ---------- 实际记录 ----------
+
+function tsToDate(ts) {
+  const d = new Date(ts);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+export function recordsOf(dateStr) {
+  return Object.values(state.records)
+    .filter((r) => !r.deleted && tsToDate(r.startTs) === dateStr)
+    .sort((a, b) => b.startTs - a.startTs);
+}
+
+export function addRecord(rec) {
+  const id = nextId();
+  const r = Object.assign({ id, updatedAt: Date.now(), deleted: false }, rec);
+  state.records[id] = r;
+  saveNow();
+  return r;
+}
+
+export function updateRecord(id, patch) {
+  const r = state.records[id];
+  if (!r) return null;
+  Object.assign(r, patch, { updatedAt: Date.now() });
+  saveNow();
+  return r;
+}
+
+export function deleteRecord(id) {
+  const r = state.records[id];
+  if (r) { r.deleted = true; r.updatedAt = Date.now(); saveNow(); }
+}
+
+export function ongoingSleep() {
+  return Object.values(state.records).find((r) => !r.deleted && r.type === 'sleep' && !r.endTs) || null;
+}
+
+export function lastOfType(type) {
+  let best = null;
+  for (const r of Object.values(state.records)) {
+    if (r.deleted || r.type !== type) continue;
+    if (!best || r.startTs > best.startTs) best = r;
+  }
+  return best;
+}
+
+export function activeRefs() {
+  const t = activeTemplate();
+  return (t && t.refs) || null;
+}
+
+export function addGrowth(g) {
+  const id = nextId();
+  const r = Object.assign({ id, updatedAt: Date.now(), deleted: false }, g);
+  state.growth[id] = r;
+  saveNow();
+  return r;
+}
+
+export function growthList() {
+  return Object.values(state.growth).filter((g) => !g.deleted).sort((a, b) => a.ts - b.ts);
+}
+
+export function deleteGrowth(id) {
+  const g = state.growth[id];
+  if (g) { g.deleted = true; g.updatedAt = Date.now(); saveNow(); }
 }

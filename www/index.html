@@ -15,23 +15,33 @@
       <div class="header-title">宝宝作息</div>
       <div class="header-date" id="headerDate"></div>
     </div>
-    <button class="header-btn" id="btnSettings" type="button" aria-label="设置">⚙️</button>
   </header>
 
   <main id="main">
-    <section class="page active" id="page-schedule"></section>
-    <section class="page" id="page-edu"></section>
-    <section class="page" id="page-notes"></section>
-    <section class="page" id="page-history"></section>
+    <section class="page active" id="page-record"></section>
+
+    <section class="page" id="page-schedule">
+      <div class="subtabs" id="subtabs">
+        <button class="subtab on" data-sub="sub-schedule" type="button">作息</button>
+        <button class="subtab" data-sub="sub-edu" type="button">早教</button>
+        <button class="subtab" data-sub="sub-notes" type="button">带养</button>
+      </div>
+      <div class="subpage active" id="sub-schedule"></div>
+      <div class="subpage" id="sub-edu"></div>
+      <div class="subpage" id="sub-notes"></div>
+    </section>
+
+    <section class="page" id="page-charts"></section>
+    <section class="page" id="page-mine"></section>
   </main>
 
   <button class="fab" id="fabSleep" type="button" aria-label="哄睡">🌙</button>
 
   <nav class="tabbar">
-    <button class="tab active" data-tab="schedule" type="button"><span class="tab-ico">📋</span><span class="tab-txt">作息</span></button>
-    <button class="tab" data-tab="edu" type="button"><span class="tab-ico">🧩</span><span class="tab-txt">早教</span></button>
-    <button class="tab" data-tab="notes" type="button"><span class="tab-ico">💡</span><span class="tab-txt">带养</span></button>
-    <button class="tab" data-tab="history" type="button"><span class="tab-ico">📅</span><span class="tab-txt">记录</span></button>
+    <button class="tab active" data-tab="record" type="button"><span class="tab-ico">📝</span><span class="tab-txt">记录</span></button>
+    <button class="tab" data-tab="schedule" type="button"><span class="tab-ico">📋</span><span class="tab-txt">作息</span></button>
+    <button class="tab" data-tab="charts" type="button"><span class="tab-ico">📈</span><span class="tab-txt">图表</span></button>
+    <button class="tab" data-tab="mine" type="button"><span class="tab-ico">👤</span><span class="tab-txt">我的</span></button>
   </nav>
 
   <div id="toast" class="toast"></div>
