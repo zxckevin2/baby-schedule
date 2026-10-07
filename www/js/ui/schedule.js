@@ -1,11 +1,12 @@
 // 作息页：磨玻璃卡片 + 可点胶囊 + 奶量滑块 + 原生时间选择器
 
-import { h, normTime, promptInput } from '../util.js';
+import { h, normTime, parseTime, promptInput } from '../util.js';
 import * as store from '../store.js';
 import * as haptics from '../haptics.js';
 import * as widget from '../widget.js';
 import { FEED_PRESETS, SLEEP_PRESETS } from '../templates.js';
 import { ensurePermission, syncAll } from '../notifications.js';
+import { pickTime } from '../picker.js';
 
 let root = null;
 
@@ -105,12 +106,19 @@ function renderCard(row, t) {
   });
   top.appendChild(check);
 
-  const time = h('input', { class: 'time', type: 'time', value: normTime(row.time) });
-  time.addEventListener('change', () => {
-    row.time = time.value;
-    store.save();
-    syncAll(store.getState());
-    widget.update();
+  const time = h('button', { class: 'time time-btn', type: 'button', text: row.time ? normTime(row.time) : '设置时间' });
+  time.addEventListener('click', () => {
+    haptics.tap();
+    const t = parseTime(row.time);
+    const base = t ? new Date(new Date().setHours(t.h, t.m, 0, 0)).getTime() : Date.now();
+    pickTime(base, (ts) => {
+      const d = new Date(ts);
+      row.time = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+      time.textContent = row.time;
+      store.save();
+      syncAll(store.getState());
+      widget.update();
+    });
   });
   top.appendChild(time);
 

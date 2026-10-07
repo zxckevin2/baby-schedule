@@ -4,6 +4,7 @@ import { h, ageLabel, toast } from '../util.js';
 import * as store from '../store.js';
 import * as haptics from '../haptics.js';
 import { applyTheme } from '../theme.js';
+import { pickDate } from '../picker.js';
 import * as history from './history.js';
 
 let root = null;
@@ -37,11 +38,19 @@ export function render() {
   });
   root.appendChild(genderChips);
 
-  const dateInput = h('input', { class: 'set-input', type: 'date', value: s.baby.birthday });
+  const dateInput = h('button', { class: 'value-row', type: 'button' },
+    h('span', { text: s.baby.birthday || '选择出生日期' }),
+    h('span', { class: 'value-arrow', text: '›' }));
   const ageHint = h('div', { class: 'set-hint', text: s.baby.birthday ? '当前月龄：' + ageLabel(s.baby.birthday) : '填写出生日期后自动匹配月龄模板' });
-  dateInput.addEventListener('change', () => {
-    store.setBaby({ birthday: dateInput.value });
-    ageHint.textContent = dateInput.value ? '当前月龄：' + ageLabel(dateInput.value) : '填写出生日期后自动匹配月龄模板';
+  dateInput.addEventListener('click', () => {
+    const base = s.baby.birthday ? new Date(s.baby.birthday + 'T00:00:00').getTime() : Date.now();
+    pickDate(base, (ts) => {
+      const d = new Date(ts);
+      const val = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+      store.setBaby({ birthday: val });
+      dateInput.firstChild.textContent = val;
+      ageHint.textContent = '当前月龄：' + ageLabel(val);
+    });
   });
   root.appendChild(dateInput);
   root.appendChild(ageHint);

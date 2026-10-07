@@ -8,6 +8,18 @@ export const TYPES = [
   { key: 'supplement', name: '补剂', ico: '💊' }
 ];
 
+export const MILK_TYPES = [['母乳', 'breast'], ['配方奶', 'formula'], ['鲜奶', 'fresh'], ['水', 'water']];
+export const SIDES = [['左', 'left'], ['右', 'right'], ['双侧', 'both']];
+export const DIAPER_KINDS = [['大便', 'poop'], ['小便', 'pee'], ['混合', 'mix']];
+export const DIAPER_AMOUNTS = [['不选择', ''], ['少', 'little'], ['中', 'mid'], ['多', 'much']];
+export const DIAPER_COLORS = [['不选择', ''], ['黄色', 'yellow'], ['黄绿色', 'yellowgreen'], ['深绿色', 'darkgreen'], ['绿色', 'green'], ['棕色', 'brown'], ['黑色', 'black'], ['红色', 'red']];
+export const DIAPER_SHAPES = [['不选择', ''], ['成形', 'formed'], ['干燥', 'dry'], ['卷曲', 'curly'], ['糊状', 'paste'], ['水样', 'watery']];
+
+export function labelOf(pairs, val) {
+  const f = pairs.find((p) => p[1] === val);
+  return f ? f[0] : (val || '');
+}
+
 export function typeMeta(key) {
   return TYPES.find((t) => t.key === key) || { key, name: key, ico: '•' };
 }
@@ -44,7 +56,6 @@ export function recDurationMin(rec, now = Date.now()) {
   return Math.max(0, Math.round((end - rec.startTs) / 60000));
 }
 
-// 与「上一个同类型记录」的间隔（分钟）；睡眠用上一个的结束时间
 export function gapMin(rec, sameTypeAsc) {
   const idx = sameTypeAsc.indexOf(rec);
   if (idx <= 0) return null;
@@ -53,7 +64,6 @@ export function gapMin(rec, sameTypeAsc) {
   return Math.max(0, Math.round((rec.startTs - from) / 60000));
 }
 
-// 每条记录在「同类型升序」里的前一天记录，用于算间隔
 export function orderByType(records, type) {
   return records.filter((r) => r.type === type).sort((a, b) => a.startTs - b.startTs);
 }
@@ -79,10 +89,9 @@ export function summarize(records, now = Date.now()) {
 
 export function recordTitle(rec) {
   const m = typeMeta(rec.type);
-  if (rec.type === 'bottle') return m.name + (rec.milkType ? '　' + (rec.milkType === 'formula' ? '配方奶' : '母乳') : '');
-  if (rec.type === 'nursing') return m.name + (rec.side ? '　' + sideName(rec.side) : '');
-  if (rec.type === 'diaper') return m.name + (rec.diaperKind ? '　' + diaperName(rec.diaperKind) : '');
-  if (rec.type === 'supplement') return m.name;
+  if (rec.type === 'bottle') return m.name + (rec.milkType ? '　' + labelOf(MILK_TYPES, rec.milkType) : '');
+  if (rec.type === 'nursing') return m.name + (rec.side ? '　' + labelOf(SIDES, rec.side) : '');
+  if (rec.type === 'diaper') return m.name + (rec.diaperKind ? '　' + labelOf(DIAPER_KINDS, rec.diaperKind) : '');
   return m.name;
 }
 
@@ -94,7 +103,14 @@ export function recordDetail(rec, now = Date.now()) {
   }
   if (rec.type === 'bottle') return rec.amountMl ? fmtMl(rec.amountMl) : '';
   if (rec.type === 'nursing') return rec.durationMin ? '共 ' + rec.durationMin + ' 分钟' : '';
-  if (rec.type === 'diaper') return rec.diaperNote || '';
+  if (rec.type === 'diaper') {
+    const parts = [];
+    if (rec.diaperAmount) parts.push('量' + labelOf(DIAPER_AMOUNTS, rec.diaperAmount));
+    if (rec.diaperColor) parts.push(labelOf(DIAPER_COLORS, rec.diaperColor));
+    if (rec.diaperShape) parts.push(labelOf(DIAPER_SHAPES, rec.diaperShape));
+    if (rec.diaperNote) parts.push(rec.diaperNote);
+    return parts.join(' · ');
+  }
   if (rec.type === 'supplement') return [rec.supplementName, rec.dose].filter(Boolean).join(' ');
   return rec.note || '';
 }
@@ -104,6 +120,3 @@ export function recordRight(rec, now = Date.now()) {
   if (rec.type === 'bottle') return rec.amountMl ? fmtMl(rec.amountMl) : '';
   return '';
 }
-
-export function sideName(s) { return s === 'left' ? '左' : s === 'right' ? '右' : s === 'both' ? '双侧' : s; }
-export function diaperName(s) { return s === 'pee' ? '尿' : s === 'poop' ? '大便' : s === 'mix' ? '混合' : s; }

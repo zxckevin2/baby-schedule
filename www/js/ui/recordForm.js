@@ -1,8 +1,9 @@
-// 记录表单：5 类记录的录入/编辑（底部面板）
+// 记录表单：5 类记录的录入/编辑（底部面板，含自定义时间选择）
 
-import { h, toast } from '../util.js';
+import { h } from '../util.js';
 import * as store from '../store.js';
-import { typeMeta, sideName, diaperName, two } from '../records.js';
+import { typeMeta, MILK_TYPES, DIAPER_KINDS, DIAPER_AMOUNTS, DIAPER_COLORS, DIAPER_SHAPES, SIDES, labelOf } from '../records.js';
+import { pickDateTime, fmtDateTime } from '../picker.js';
 
 let sheet = null;
 let backdrop = null;
@@ -21,33 +22,27 @@ export function close() {
   if (sheet) sheet.classList.remove('show');
 }
 
-function timeValue(ts) {
-  const d = new Date(ts);
-  return two(d.getHours()) + ':' + two(d.getMinutes());
-}
-function tsFromTime(str) {
-  const m = /(\d{1,2}):(\d{2})/.exec(str || '');
-  const d = new Date();
-  if (m) d.setHours(+m[1], +m[2], 0, 0);
-  return d.getTime();
-}
-
 export function openForm({ type, record = null, onDone = () => { } }) {
   ensureDom();
   const editing = !!record;
   const meta = typeMeta(type);
   const base = record || { type };
+  const now = Date.now();
   const vals = {
-    startTs: base.startTs || Date.now(),
+    startTs: base.startTs || now,
     endTs: base.endTs || null,
-    amountMl: base.amountMl != null ? base.amountMl : '',
+    amountMl: base.amountMl != null ? base.amountMl : (type === 'bottle' ? 100 : null),
     milkType: base.milkType || 'breast',
     side: base.side || 'left',
     durationMin: base.durationMin != null ? base.durationMin : '',
     diaperKind: base.diaperKind || 'pee',
+    diaperAmount: base.diaperAmount || '',
+    diaperColor: base.diaperColor || '',
+    diaperShape: base.diaperShape || '',
     diaperNote: base.diaperNote || '',
     supplementName: base.supplementName || '',
-    dose: base.dose || ''
+    dose: base.dose || '',
+    note: base.note || ''
   };
 
   sheet.textContent = '';
@@ -56,52 +51,63 @@ export function openForm({ type, record = null, onDone = () => { } }) {
 
   const body = h('div', { class: 'form-body' });
 
-  // 时间
-  const startVal = timeValue(vals.startTs);
-  body.appendChild(row('时间', h('input', {
-    class: 'set-input', type: 'time', value: startVal,
-    onchange: (e) => { vals.startTs = tsFromTime(e.target.value); }
-  })));
-
-  if (type === 'sleep') {
-    body.appendChild(row('结束', h('input', {
-      class: 'set-input', type: 'time', value: vals.endTs ? timeValue(vals.endTs) : '',
-      onchange: (e) => { vals.endTs = e.target.value ? tsFromTime(e.target.value) : null; }
-    })));
-    body.appendChild(h('div', { class: 'set-hint', text: '结束时间留空 = 正在睡（进行中）' }));
-  }
-
   if (type === 'bottle') {
-    body.appendChild(row('奶量(ml)', numInput(vals.amountMl, (v) => { vals.amountMl = v; })));
-    body.appendChild(row('类型', chipRow([['母乳', 'breast'], ['配方奶', 'formula']], vals.milkType, (v) => { vals.milkType = v; })));
+    body.appendChild(bigAmount(vals));
+    body.appendChild(chipSection('瓶喂', MILK_TYPES, vals.milkType, (v) => { vals.milkType = v; }));
   }
 
   if (type === 'nursing') {
-    body.appendChild(row('侧', chipRow([['左', 'left'], ['右', 'right'], ['双侧', 'both']], vals.side, (v) => { vals.side = v; })));
-    body.appendChild(row('时长(分钟)', numInput(vals.durationMin, (v) => { vals.durationMin = v; })));
+    body.appendChild(chipSection('侧', SIDES, vals.side, (v) => { vals.side = v; }));
+    body.appendChild(numSection('时长（分钟）', vals.durationMin, (v) => { vals.durationMin = v; }));
   }
 
   if (type === 'diaper') {
-    body.appendChild(row('类型', chipRow([['尿', 'pee'], ['大便', 'poop'], ['混合', 'mix']], vals.diaperKind, (v) => { vals.diaperKind = v; })));
-    body.appendChild(row('性状', h('input', { class: 'set-input', type: 'text', placeholder: '如 量多,黄色,糊状', value: vals.diaperNote, oninput: (e) => { vals.diaperNote = e.target.value.trim(); } })));
+    const detail = h('div', {});
+    const renderDetail = () => {
+      detail.textContent = '';
+      if (vals.diaperKind === 'poop' || vals.diaperKind === 'mix') {
+        detail.appendChild(chipSection('便便颜色', DIAPER_COLORS, vals.diaperColor, (v) => { vals.diaperColor = v; }, true));
+        detail.appendChild(chipSection('便便形状', DIAPER_SHAPES, vals.diaperShape, (v) => { vals.diaperShape = v; }, true));
+      }
+    };
+    body.appendChild(chipSection('尿布类型', DIAPER_KINDS, vals.diaperKind, (v) => { vals.diaperKind = v; renderDetail(); }));
+    body.appendChild(chipSection('量', DIAPER_AMOUNTS, vals.diaperAmount, (v) => { vals.diaperAmount = v; }, true));
+    body.appendChild(detail);
+    renderDetail();
   }
 
   if (type === 'supplement') {
-    body.appendChild(row('名称', h('input', { class: 'set-input', type: 'text', placeholder: '如 AD', value: vals.supplementName, oninput: (e) => { vals.supplementName = e.target.value.trim(); } })));
-    body.appendChild(row('剂量', h('input', { class: 'set-input', type: 'text', placeholder: '如 1滴', value: vals.dose, oninput: (e) => { vals.dose = e.target.value.trim(); } })));
+    body.appendChild(inputSection('名称', '如 AD', vals.supplementName, (v) => { vals.supplementName = v; }));
+    body.appendChild(inputSection('剂量', '如 1滴', vals.dose, (v) => { vals.dose = v; }));
   }
+
+  // 时间（自定义选择器）
+  const timeSection = h('div', { class: 'form-sec' },
+    h('div', { class: 'form-sec-label', text: '时间' }));
+  const timeBtn = h('button', { class: 'value-row', type: 'button' }, h('span', { text: fmtDateTime(vals.startTs) }), h('span', { class: 'value-arrow', text: '›' }));
+  timeBtn.addEventListener('click', () => {
+    pickDateTime(vals.startTs, (ts) => { vals.startTs = ts; timeBtn.firstChild.textContent = fmtDateTime(ts); });
+  });
+  timeSection.appendChild(timeBtn);
+  body.appendChild(timeSection);
+
+  // 备注
+  body.appendChild(noteSection(vals));
 
   sheet.appendChild(body);
 
   const actions = h('div', { class: 'modal-actions' });
+  const cancel = h('button', { class: 'btn btn-ghost', type: 'button', text: '取消' });
+  cancel.addEventListener('click', close);
   if (editing) {
     const del = h('button', { class: 'btn btn-danger', type: 'button', text: '删除' });
     del.addEventListener('click', () => { store.deleteRecord(record.id); close(); onDone(); });
+    actions.appendChild(cancel);
     actions.appendChild(del);
+  } else {
+    actions.appendChild(cancel);
   }
-  const cancel = h('button', { class: 'btn btn-ghost', type: 'button', text: '取消' });
-  cancel.addEventListener('click', close);
-  const save = h('button', { class: 'btn', type: 'button', text: editing ? '保存' : '记录' });
+  const save = h('button', { class: 'btn', type: 'button', text: editing ? '保存' : '确认' });
   save.addEventListener('click', () => {
     const patch = buildPatch(type, vals);
     if (editing) store.updateRecord(record.id, patch);
@@ -109,7 +115,6 @@ export function openForm({ type, record = null, onDone = () => { } }) {
     close();
     onDone();
   });
-  actions.appendChild(cancel);
   actions.appendChild(save);
   sheet.appendChild(actions);
 
@@ -117,35 +122,90 @@ export function openForm({ type, record = null, onDone = () => { } }) {
   sheet.classList.add('show');
 }
 
-function row(label, control) {
-  return h('div', { class: 'form-row' }, h('span', { class: 'form-label', text: label }), control);
+/* ---------------- 控件 ---------------- */
+function bigAmount(vals) {
+  const box = h('div', { class: 'form-sec amount-sec' });
+  box.appendChild(h('div', { class: 'form-sec-label', text: '进食量' }));
+  const num = h('span', { class: 'amount-num', text: String(vals.amountMl == null ? 0 : vals.amountMl) });
+  const row = h('div', { class: 'amount-box' });
+  const minus = h('button', { class: 'step-btn', type: 'button', text: '−' });
+  const plus = h('button', { class: 'step-btn', type: 'button', text: '＋' });
+  const val = h('div', { class: 'amount-val' }, num, h('span', { class: 'amount-unit', text: 'ml' }));
+  const setVal = (v) => { vals.amountMl = Math.max(0, Math.min(300, v)); num.textContent = String(vals.amountMl); };
+  minus.addEventListener('click', () => setVal((vals.amountMl || 0) - 10));
+  plus.addEventListener('click', () => setVal((vals.amountMl || 0) + 10));
+  row.appendChild(minus); row.appendChild(val); row.appendChild(plus);
+  box.appendChild(row);
+  const presets = h('div', { class: 'amount-presets' });
+  [60, 90, 120, 150, 180].forEach((p) => {
+    const b = h('button', { class: 'pre-chip' + (vals.amountMl === p ? ' on' : ''), type: 'button', text: String(p) });
+    b.addEventListener('click', () => {
+      setVal(p);
+      presets.querySelectorAll('.pre-chip').forEach((x) => x.classList.remove('on'));
+      b.classList.add('on');
+    });
+    presets.appendChild(b);
+  });
+  box.appendChild(presets);
+  return box;
 }
-function numInput(value, onChange) {
-  const inp = h('input', { class: 'set-input', type: 'number', inputmode: 'numeric', value: value === '' ? '' : String(value) });
-  inp.addEventListener('input', () => { onChange(inp.value === '' ? '' : Number(inp.value)); });
-  return inp;
-}
-function chipRow(opts, current, onChange) {
-  const wrap = h('div', { class: 'chips' });
+
+function chipSection(label, opts, current, onChange, allowEmpty) {
+  const sec = h('div', { class: 'form-sec' });
+  sec.appendChild(h('div', { class: 'form-sec-label', text: label }));
+  const chips = h('div', { class: 'chips' });
+  const list = opts.slice();
   let cur = current;
-  opts.forEach(([label, val]) => {
-    const c = h('button', { class: 'chip' + (val === cur ? ' on' : ''), type: 'button', text: label });
+  list.forEach(([text, val]) => {
+    const c = h('button', { class: 'chip' + (val === cur ? ' on' : ''), type: 'button', text });
     c.addEventListener('click', () => {
       cur = val; onChange(val);
-      wrap.querySelectorAll('.chip').forEach((x) => x.classList.remove('on'));
+      chips.querySelectorAll('.chip').forEach((x) => x.classList.remove('on'));
       c.classList.add('on');
     });
-    wrap.appendChild(c);
+    chips.appendChild(c);
   });
-  return wrap;
+  sec.appendChild(chips);
+  return sec;
+}
+
+function numSection(label, value, onChange) {
+  const sec = h('div', { class: 'form-sec' });
+  sec.appendChild(h('div', { class: 'form-sec-label', text: label }));
+  const inp = h('input', { class: 'set-input', type: 'number', inputmode: 'numeric', value: value === '' ? '' : String(value) });
+  inp.addEventListener('input', () => onChange(inp.value === '' ? '' : Number(inp.value)));
+  sec.appendChild(inp);
+  return sec;
+}
+
+function inputSection(label, placeholder, value, onChange) {
+  const sec = h('div', { class: 'form-sec' });
+  sec.appendChild(h('div', { class: 'form-sec-label', text: label }));
+  const inp = h('input', { class: 'set-input', type: 'text', placeholder, value });
+  inp.addEventListener('input', () => onChange(inp.value.trim()));
+  sec.appendChild(inp);
+  return sec;
+}
+
+function noteSection(vals) {
+  const sec = h('div', { class: 'form-sec' });
+  sec.appendChild(h('div', { class: 'form-sec-label', text: '备注' }));
+  const ta = h('textarea', { class: 'set-input', rows: '2', placeholder: '备注', value: vals.note });
+  ta.addEventListener('input', () => { vals.note = ta.value.trim(); });
+  sec.appendChild(ta);
+  return sec;
 }
 
 function buildPatch(type, v) {
-  const p = { type, startTs: v.startTs, endTs: null };
-  if (type === 'sleep') { p.endTs = v.endTs || null; }
+  const p = { type, startTs: v.startTs, endTs: null, note: v.note || '' };
+  if (type === 'sleep') p.endTs = v.endTs || null;
   if (type === 'bottle') { p.amountMl = v.amountMl === '' ? null : Number(v.amountMl); p.milkType = v.milkType; }
   if (type === 'nursing') { p.side = v.side; p.durationMin = v.durationMin === '' ? null : Number(v.durationMin); }
-  if (type === 'diaper') { p.diaperKind = v.diaperKind; p.diaperNote = v.diaperNote; }
+  if (type === 'diaper') {
+    p.diaperKind = v.diaperKind; p.diaperAmount = v.diaperAmount; p.diaperNote = v.diaperNote;
+    if (v.diaperKind === 'poop' || v.diaperKind === 'mix') { p.diaperColor = v.diaperColor; p.diaperShape = v.diaperShape; }
+    else { p.diaperColor = ''; p.diaperShape = ''; }
+  }
   if (type === 'supplement') { p.supplementName = v.supplementName; p.dose = v.dose; }
   return p;
 }
