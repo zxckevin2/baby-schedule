@@ -127,10 +127,15 @@ async function loadLists(membersList, logList) {
     membersList.textContent = '';
     if (!members.length) membersList.appendChild(h('div', { class: 'set-hint', text: '暂无成员' }));
     members.forEach((m) => {
-      const isMe = m.deviceId === store.getState().cloud.deviceId;
+      const isMe = m.device_id === store.getState().cloud.deviceId;
       membersList.appendChild(h('span', { class: 'share-member' + (isMe ? ' me' : ''), text: '👤 ' + (m.name || '家人') + (isMe ? '（我）' : '') }));
     });
-  } catch (e) { membersList.textContent = '成员加载失败'; }
+  } catch (e) {
+    membersList.textContent = '';
+    const retry = h('button', { class: 'share-copy', type: 'button', text: '加载失败，点此重试' });
+    retry.addEventListener('click', () => loadLists(membersList, logList));
+    membersList.appendChild(retry);
+  }
 
   try {
     const logs = await sync.pullLog();
@@ -138,8 +143,8 @@ async function loadLists(membersList, logList) {
     if (!logs.length) logList.appendChild(h('div', { class: 'set-hint', text: '暂无动态' }));
     logs.forEach((l) => {
       logList.appendChild(h('div', { class: 'share-log-item' },
-        h('span', { class: 'sl-time', text: timeStr(l.ts) }),
-        h('span', { class: 'sl-text', text: (l.memberName || '家人') + ' ' + l.text })));
+        h('span', { class: 'sl-time', text: timeStr(Number(l.ts)) }),
+        h('span', { class: 'sl-text', text: (l.member_name || '家人') + ' ' + l.text })));
     });
   } catch (e) { logList.textContent = '动态加载失败'; }
 }

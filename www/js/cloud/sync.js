@@ -4,7 +4,7 @@
 import * as store from '../store.js';
 import { CLOUD } from './config.js';
 
-let app = null, auth = null, db = null;
+let app = null, auth = null, db = null, initPromise = null;
 let pollTimer = null;
 let listeners = [];
 let pushTimer = null;
@@ -17,12 +17,17 @@ function emit() { listeners.forEach((f) => { try { f(); } catch (e) { } }); }
 export async function init() {
   if (!configured()) return false;
   if (app) return true;
-  const cb = window.cloudbase;
-  if (!cb) throw new Error('CloudBase SDK 未加载');
-  app = cb.init({ env: CLOUD.envId, region: CLOUD.region || 'ap-shanghai' });
-  auth = (typeof app.auth === 'function') ? app.auth() : app.auth;
-  db = app.rdb();
-  return true;
+  if (!initPromise) {
+    initPromise = (async () => {
+      const cb = window.cloudbase;
+      if (!cb) throw new Error('CloudBase SDK 未加载');
+      app = cb.init({ env: CLOUD.envId, region: CLOUD.region || 'ap-shanghai' });
+      auth = (typeof app.auth === 'function') ? app.auth() : app.auth;
+      db = app.rdb();
+      return true;
+    })();
+  }
+  return initPromise;
 }
 
 export async function ensureAuth() {
@@ -102,6 +107,7 @@ export async function leaveRoom() {
 export async function pullMembers() {
   const c = store.getState().cloud;
   if (!c.roomId) return [];
+  await ensureAuth();
   const { data } = await db.from('members').select('*').eq('room_id', c.roomId);
   return data || [];
 }
@@ -110,6 +116,7 @@ export async function addLog(text) {
   const c = store.getState().cloud;
   if (!c.roomId) return;
   try {
+    await ensureAuth();
     await db.from('logs').insert({ room_id: c.roomId, ts: Date.now(), device_id: c.deviceId, member_name: c.memberName || '家人', text });
   } catch (e) { }
 }
@@ -117,6 +124,7 @@ export async function addLog(text) {
 export async function pullLog(limit = 60) {
   const c = store.getState().cloud;
   if (!c.roomId) return [];
+  await ensureAuth();
   let data = null;
   try { const r = await db.from('logs').select('*').eq('room_id', c.roomId).order('ts', { ascending: false }).limit(limit); data = r.data; }
   catch (e) { try { const r = await db.from('logs').select('*').eq('room_id', c.roomId).limit(limit); data = r.data; } catch (e2) { return []; } }
@@ -169,6 +177,7 @@ export async function pushRecords() {
 export async function pullRecords() {
   const c = store.getState().cloud;
   if (!c.roomId) return false;
+  await ensureAuth();
   const { data, error } = await db.from('records').select('*').eq('room_id', c.roomId).limit(2000);
   if (error) { console.warn('pull records error', error); return false; }
   const changed = store.upsertRecords((data || []).map(rowToRec));
