@@ -2,11 +2,14 @@
 
 import { h } from '../util.js';
 import * as store from '../store.js';
-import { typeMeta, MILK_TYPES, DIAPER_KINDS, DIAPER_AMOUNTS, DIAPER_COLORS, DIAPER_SHAPES, SIDES, labelOf } from '../records.js';
+import * as sync from '../cloud/sync.js';
+import { typeMeta, MILK_TYPES, DIAPER_KINDS, DIAPER_AMOUNTS, DIAPER_COLORS, DIAPER_SHAPES, SIDES, SUPPLEMENTS } from '../records.js';
 import { pickDateTime, fmtDateTime } from '../picker.js';
 
 let sheet = null;
 let backdrop = null;
+
+const SLEEP_QUICK = [['20分钟', 20], ['40分钟', 40], ['1小时', 60], ['1.5小时', 90], ['2小时', 120]];
 
 function ensureDom() {
   if (sheet) return;
@@ -29,8 +32,8 @@ export function openForm({ type, record = null, onDone = () => { } }) {
   const base = record || { type };
   const now = Date.now();
   const vals = {
-    startTs: base.startTs || now,
-    endTs: base.endTs || null,
+    startTs: base.startTs || (type === 'sleep' ? now - 60 * 60000 : now),
+    endTs: base.endTs != null ? base.endTs : (type === 'sleep' ? now : null),
     amountMl: base.amountMl != null ? base.amountMl : (type === 'bottle' ? 100 : null),
     milkType: base.milkType || 'breast',
     side: base.side || 'left',
@@ -53,12 +56,12 @@ export function openForm({ type, record = null, onDone = () => { } }) {
 
   if (type === 'bottle') {
     body.appendChild(bigAmount(vals));
-    body.appendChild(chipSection('瓶喂', MILK_TYPES, vals.milkType, (v) => { vals.milkType = v; }));
+    body.appendChild(chipSection('🍼 瓶喂', MILK_TYPES, vals.milkType, (v) => { vals.milkType = v; }));
   }
 
   if (type === 'nursing') {
-    body.appendChild(chipSection('侧', SIDES, vals.side, (v) => { vals.side = v; }));
-    body.appendChild(numSection('时长（分钟）', vals.durationMin, (v) => { vals.durationMin = v; }));
+    body.appendChild(chipSection('🤱 侧', SIDES, vals.side, (v) => { vals.side = v; }));
+    body.appendChild(numSection('⏱️ 时长（分钟）', vals.durationMin, (v) => { vals.durationMin = v; }));
   }
 
   if (type === 'diaper') {
@@ -66,42 +69,56 @@ export function openForm({ type, record = null, onDone = () => { } }) {
     const renderDetail = () => {
       detail.textContent = '';
       if (vals.diaperKind === 'poop' || vals.diaperKind === 'mix') {
-        detail.appendChild(chipSection('便便颜色', DIAPER_COLORS, vals.diaperColor, (v) => { vals.diaperColor = v; }, true));
-        detail.appendChild(chipSection('便便形状', DIAPER_SHAPES, vals.diaperShape, (v) => { vals.diaperShape = v; }, true));
+        detail.appendChild(chipSection('🎨 便便颜色', DIAPER_COLORS, vals.diaperColor, (v) => { vals.diaperColor = v; }));
+        detail.appendChild(chipSection('🌀 便便形状', DIAPER_SHAPES, vals.diaperShape, (v) => { vals.diaperShape = v; }));
       }
     };
-    body.appendChild(chipSection('尿布类型', DIAPER_KINDS, vals.diaperKind, (v) => { vals.diaperKind = v; renderDetail(); }));
-    body.appendChild(chipSection('量', DIAPER_AMOUNTS, vals.diaperAmount, (v) => { vals.diaperAmount = v; }, true));
+    body.appendChild(chipSection('💩 尿布类型', DIAPER_KINDS, vals.diaperKind, (v) => { vals.diaperKind = v; renderDetail(); }));
+    body.appendChild(chipSection('📏 量', DIAPER_AMOUNTS, vals.diaperAmount, (v) => { vals.diaperAmount = v; }));
     body.appendChild(detail);
     renderDetail();
   }
 
   if (type === 'supplement') {
-    body.appendChild(inputSection('名称', '如 AD', vals.supplementName, (v) => { vals.supplementName = v; }));
-    body.appendChild(inputSection('剂量', '如 1滴', vals.dose, (v) => { vals.dose = v; }));
+    const nameInp = h('input', { class: 'set-input', type: 'text', placeholder: '如 AD', value: vals.supplementName });
+    nameInp.addEventListener('input', () => { vals.supplementName = nameInp.value.trim(); });
+    const quick = h('div', { class: 'form-sec' });
+    quick.appendChild(h('div', { class: 'form-sec-label', text: '💊 常用' }));
+    const chips = h('div', { class: 'chips' });
+    SUPPLEMENTS.forEach(([text, val]) => {
+      const c = h('button', { class: 'chip' + (vals.supplementName === val ? ' on' : ''), type: 'button', text });
+      c.addEventListener('click', () => {
+        vals.supplementName = val;
+        nameInp.value = val;
+        chips.querySelectorAll('.chip').forEach((x) => x.classList.remove('on'));
+        c.classList.add('on');
+      });
+      chips.appendChild(c);
+    });
+    quick.appendChild(chips);
+    body.appendChild(quick);
+    const nameSec = h('div', { class: 'form-sec' });
+    nameSec.appendChild(h('div', { class: 'form-sec-label', text: '✏️ 名称' }));
+    nameSec.appendChild(nameInp);
+    body.appendChild(nameSec);
+    body.appendChild(inputSection('💧 剂量', '如 1滴', vals.dose, (v) => { vals.dose = v; }));
   }
 
-  // 时间（自定义选择器）
-  const timeSection = h('div', { class: 'form-sec' },
-    h('div', { class: 'form-sec-label', text: '时间' }));
-  const timeBtn = h('button', { class: 'value-row', type: 'button' }, h('span', { text: fmtDateTime(vals.startTs) }), h('span', { class: 'value-arrow', text: '›' }));
-  timeBtn.addEventListener('click', () => {
-    pickDateTime(vals.startTs, (ts) => { vals.startTs = ts; timeBtn.firstChild.textContent = fmtDateTime(ts); });
-  });
-  timeSection.appendChild(timeBtn);
-  body.appendChild(timeSection);
+  if (type === 'sleep') {
+    body.appendChild(sleepSection(vals));
+  } else {
+    body.appendChild(singleTimeSection(vals));
+  }
 
-  // 备注
   body.appendChild(noteSection(vals));
-
   sheet.appendChild(body);
 
   const actions = h('div', { class: 'modal-actions' });
   const cancel = h('button', { class: 'btn btn-ghost', type: 'button', text: '取消' });
   cancel.addEventListener('click', close);
   if (editing) {
-    const del = h('button', { class: 'btn btn-danger', type: 'button', text: '删除' });
-    del.addEventListener('click', () => { store.deleteRecord(record.id); close(); onDone(); });
+    const del = h('button', { class: 'btn btn-danger', type: 'button', text: '🗑 删除' });
+    del.addEventListener('click', () => { store.deleteRecord(record.uid); sync.schedulePush(); close(); onDone(); });
     actions.appendChild(cancel);
     actions.appendChild(del);
   } else {
@@ -110,8 +127,9 @@ export function openForm({ type, record = null, onDone = () => { } }) {
   const save = h('button', { class: 'btn', type: 'button', text: editing ? '保存' : '确认' });
   save.addEventListener('click', () => {
     const patch = buildPatch(type, vals);
-    if (editing) store.updateRecord(record.id, patch);
+    if (editing) store.updateRecord(record.uid, patch);
     else store.addRecord(patch);
+    sync.schedulePush();
     close();
     onDone();
   });
@@ -122,10 +140,87 @@ export function openForm({ type, record = null, onDone = () => { } }) {
   sheet.classList.add('show');
 }
 
+/* ---------------- 睡眠：快捷时长 + 起止时间反推 ---------------- */
+function sleepSection(vals) {
+  const sec = h('div', { class: 'form-sec' });
+  sec.appendChild(h('div', { class: 'form-sec-label', text: '😴 睡眠时长（快捷）' }));
+  const chips = h('div', { class: 'chips' });
+  const chipEls = [];
+  const paint = (selMin) => chipEls.forEach(([btn, m]) => btn.classList.toggle('on', m === selMin));
+  SLEEP_QUICK.forEach(([label, min]) => {
+    const c = h('button', { class: 'chip', type: 'button', text: label });
+    c.addEventListener('click', () => {
+      const end = vals.endTs || Date.now();
+      vals.endTs = end;
+      vals.startTs = end - min * 60000;
+      paint(min);
+      refresh();
+    });
+    chipEls.push([c, min]);
+    chips.appendChild(c);
+  });
+  sec.appendChild(chips);
+
+  // 起止时间
+  const startRow = timeValueRow('🌙 开始', vals.startTs, (ts) => { vals.startTs = ts; paint(null); refresh(); });
+  const endRow = timeValueRow('☀️ 结束', vals.endTs, (ts) => { vals.endTs = ts; paint(null); refresh(); });
+  sec.appendChild(startRow.el);
+  sec.appendChild(h('div', { class: 'set-hint', text: '结束时间留空 = 正在睡（计时中）' }));
+  sec.appendChild(endRow.el);
+
+  // 结束时间可清空
+  const clearEnd = h('button', { class: 'chip add', type: 'button', text: vals.endTs ? '结束时间留空（正在睡）' : '设置结束时间' });
+  clearEnd.addEventListener('click', () => {
+    if (vals.endTs) { vals.endTs = null; } else { vals.endTs = Date.now(); }
+    clearEnd.textContent = vals.endTs ? '结束时间留空（正在睡）' : '设置结束时间';
+    refresh();
+  });
+  sec.appendChild(clearEnd);
+
+  function refresh() {
+    startRow.set(vals.startTs);
+    endRow.set(vals.endTs);
+    // 反推匹配的时长高亮
+    if (vals.endTs) {
+      const min = Math.round((vals.endTs - vals.startTs) / 60000);
+      paint(SLEEP_QUICK.find(([, m]) => m === min) ? min : null);
+    } else {
+      paint(null);
+    }
+  }
+  // 初始：若默认正好 60 分钟则高亮 1 小时
+  refresh();
+
+  return sec;
+}
+
+function singleTimeSection(vals) {
+  const sec = h('div', { class: 'form-sec' });
+  sec.appendChild(h('div', { class: 'form-sec-label', text: '⏰ 时间' }));
+  const row = timeValueRow('', vals.startTs, (ts) => { vals.startTs = ts; });
+  row.el.classList.add('plain');
+  sec.appendChild(row.el);
+  return sec;
+}
+
+function timeValueRow(label, ts, onChange) {
+  const valSpan = h('span', { text: ts != null ? fmtDateTime(ts) : '未设置' });
+  const row = h('button', { class: 'value-row', type: 'button' },
+    label ? h('span', { class: 'value-label', text: label }) : null,
+    h('span', { class: 'value-right' }, valSpan, h('span', { class: 'value-arrow', text: '›' })));
+  row.addEventListener('click', () => {
+    pickDateTime(ts != null ? ts : Date.now(), (v) => { onChange(v); });
+  });
+  return {
+    el: row,
+    set(v) { valSpan.textContent = v != null ? fmtDateTime(v) : '未设置'; }
+  };
+}
+
 /* ---------------- 控件 ---------------- */
 function bigAmount(vals) {
   const box = h('div', { class: 'form-sec amount-sec' });
-  box.appendChild(h('div', { class: 'form-sec-label', text: '进食量' }));
+  box.appendChild(h('div', { class: 'form-sec-label', text: '🍼 进食量' }));
   const num = h('span', { class: 'amount-num', text: String(vals.amountMl == null ? 0 : vals.amountMl) });
   const row = h('div', { class: 'amount-box' });
   const minus = h('button', { class: 'step-btn', type: 'button', text: '−' });
@@ -150,13 +245,12 @@ function bigAmount(vals) {
   return box;
 }
 
-function chipSection(label, opts, current, onChange, allowEmpty) {
+function chipSection(label, opts, current, onChange) {
   const sec = h('div', { class: 'form-sec' });
   sec.appendChild(h('div', { class: 'form-sec-label', text: label }));
   const chips = h('div', { class: 'chips' });
-  const list = opts.slice();
   let cur = current;
-  list.forEach(([text, val]) => {
+  opts.forEach(([text, val]) => {
     const c = h('button', { class: 'chip' + (val === cur ? ' on' : ''), type: 'button', text });
     c.addEventListener('click', () => {
       cur = val; onChange(val);
@@ -189,8 +283,8 @@ function inputSection(label, placeholder, value, onChange) {
 
 function noteSection(vals) {
   const sec = h('div', { class: 'form-sec' });
-  sec.appendChild(h('div', { class: 'form-sec-label', text: '备注' }));
-  const ta = h('textarea', { class: 'set-input', rows: '2', placeholder: '备注', value: vals.note });
+  sec.appendChild(h('div', { class: 'form-sec-label', text: '📝 备注' }));
+  const ta = h('textarea', { class: 'set-input', rows: '2', placeholder: '想记点啥…', value: vals.note });
   ta.addEventListener('input', () => { vals.note = ta.value.trim(); });
   sec.appendChild(ta);
   return sec;

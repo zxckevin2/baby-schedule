@@ -49,6 +49,10 @@ function defaultSettings() {
   return { volume: 0.7, loop: true, sleepTimerMin: 30, theme: 'auto', haptics: true, autoAge: true, manualPickDate: '' };
 }
 
+function defaultCloud() {
+  return { roomId: '', roomName: '', inviteCode: '', deviceId: '', memberName: '', joinedAt: 0, lastSync: 0 };
+}
+
 function freshState() {
   const seq = { n: 0 };
   const templates = {};
@@ -63,7 +67,8 @@ function freshState() {
     baby: { name: '', gender: '', birthday: '' },
     history: {},
     records: {},
-    growth: {}
+    growth: {},
+    cloud: defaultCloud()
   };
 }
 
@@ -128,9 +133,10 @@ function normalize(data) {
   const history = (data.history && typeof data.history === 'object') ? data.history : {};
   const records = normRecords(data.records);
   const growth = normRecords(data.growth);
+  const cloud = Object.assign(defaultCloud(), data.cloud || {});
   return {
     version: VERSION, seq: seq.n, activeTemplate: active, templates: out,
-    date: data.date || todayStr(), settings, baby, history, records, growth
+    date: data.date || todayStr(), settings, baby, history, records, growth, cloud
   };
 }
 
@@ -146,6 +152,25 @@ function normRecords(obj) {
     }
   }
   return out;
+}
+
+// 迁移：确保有 deviceId，并把记录按全局唯一 uid 作键（为云同步准备）
+function migrateCloud(data) {
+  if (!data.cloud) data.cloud = defaultCloud();
+  if (!data.cloud.deviceId) data.cloud.deviceId = 'd' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+  const dev = data.cloud.deviceId;
+  for (const field of ['records', 'growth']) {
+    const src = data[field] || {};
+    const out = {};
+    for (const k of Object.keys(src)) {
+      const r = src[k];
+      if (!r) continue;
+      if (!r.uid) r.uid = dev + '-' + r.id;
+      out[r.uid] = r;
+    }
+    data[field] = out;
+  }
+  return data;
 }
 
 // ---------- 历史 ----------
@@ -218,7 +243,7 @@ export async function load() {
     }
   }
 
-  state = data;
+  state = migrateCloud(data);
   saveNow();
   return state;
 }
@@ -313,22 +338,22 @@ export function recordsOf(dateStr) {
 
 export function addRecord(rec) {
   const id = nextId();
-  const r = Object.assign({ id, updatedAt: Date.now(), deleted: false }, rec);
-  state.records[id] = r;
+  const r = Object.assign({ id, uid: state.cloud.deviceId + '-' + id, updatedAt: Date.now(), deleted: false }, rec);
+  state.records[r.uid] = r;
   saveNow();
   return r;
 }
 
-export function updateRecord(id, patch) {
-  const r = state.records[id];
+export function updateRecord(uid, patch) {
+  const r = state.records[uid];
   if (!r) return null;
   Object.assign(r, patch, { updatedAt: Date.now() });
   saveNow();
   return r;
 }
 
-export function deleteRecord(id) {
-  const r = state.records[id];
+export function deleteRecord(uid) {
+  const r = state.records[uid];
   if (r) { r.deleted = true; r.updatedAt = Date.now(); saveNow(); }
 }
 
@@ -352,8 +377,8 @@ export function activeRefs() {
 
 export function addGrowth(g) {
   const id = nextId();
-  const r = Object.assign({ id, updatedAt: Date.now(), deleted: false }, g);
-  state.growth[id] = r;
+  const r = Object.assign({ id, uid: state.cloud.deviceId + '-' + id, updatedAt: Date.now(), deleted: false }, g);
+  state.growth[r.uid] = r;
   saveNow();
   return r;
 }
@@ -362,7 +387,42 @@ export function growthList() {
   return Object.values(state.growth).filter((g) => !g.deleted).sort((a, b) => a.ts - b.ts);
 }
 
-export function deleteGrowth(id) {
-  const g = state.growth[id];
+export function deleteGrowth(uid) {
+  const g = state.growth[uid];
   if (g) { g.deleted = true; g.updatedAt = Date.now(); saveNow(); }
+}
+
+// ---------- 云同步辅助 ----------
+
+export function ensureDeviceId() {
+  if (!state.cloud.deviceId) {
+    state.cloud.deviceId = 'd' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+    saveNow();
+  }
+  return state.cloud.deviceId;
+}
+
+export function setCloud(patch) {
+  state.cloud = Object.assign({}, state.cloud, patch);
+  saveNow();
+}
+
+export function uidOf(rec) {
+  const d = (state.cloud && state.cloud.deviceId) || 'd0';
+  return d + '-' + rec.id;
+}
+
+export function upsertRecords(list) {
+  let changed = false;
+  for (const r of list) {
+    if (!r || !r.uid) continue;
+    const local = state.records[r.uid];
+    if (!local || (r.updatedAt || 0) > (local.updatedAt || 0)) {
+      state.records[r.uid] = r;
+      changed = true;
+      if ((r.id || 0) >= (state.seq || 0)) state.seq = r.id;
+    }
+  }
+  if (changed) saveNow();
+  return changed;
 }

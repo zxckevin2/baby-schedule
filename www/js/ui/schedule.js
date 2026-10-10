@@ -48,10 +48,10 @@ function renderBar(t) {
   bar.appendChild(chips);
 
   const p = progress(t);
-  bar.appendChild(h('div', { class: 'progress', text: `已完成 ${p.done}/${p.total}` }));
+  bar.appendChild(h('div', { class: 'progress', text: `✅ 已完成 ${p.done}/${p.total}` }));
 
   const tools = h('div', { class: 'toolbar' });
-  const newDay = h('button', { class: 'btn btn-primary', type: 'button', text: '新的一天' });
+  const newDay = h('button', { class: 'btn btn-primary', type: 'button', text: '✨ 新的一天' });
   newDay.addEventListener('click', () => { haptics.tap(); store.newDay(); render(); syncAll(store.getState()); });
   const add = h('button', { class: 'btn btn-ghost', type: 'button', text: '＋ 添加一行' });
   add.addEventListener('click', () => { haptics.tap(); const row = store.addRow(); render(); focusTime(row.id); });
@@ -208,5 +208,5 @@ function renderCard(row, t) {
 function refreshProgress() {
   const t = store.activeTemplate();
   const el = root.querySelector('.progress');
-  if (el) { const p = progress(t); el.textContent = `已完成 ${p.done}/${p.total}`; }
+  if (el) { const p = progress(t); el.textContent = `✅ 已完成 ${p.done}/${p.total}`; }
 }

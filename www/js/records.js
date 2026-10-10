@@ -10,6 +10,7 @@ export const TYPES = [
 
 export const MILK_TYPES = [['母乳', 'breast'], ['配方奶', 'formula'], ['鲜奶', 'fresh'], ['水', 'water']];
 export const SIDES = [['左', 'left'], ['右', 'right'], ['双侧', 'both']];
+export const SUPPLEMENTS = [['AD', 'AD'], ['D3', 'D3'], ['维生素D', '维生素D'], ['益生菌', '益生菌'], ['钙', '钙'], ['铁', '铁'], ['DHA', 'DHA']];
 export const DIAPER_KINDS = [['大便', 'poop'], ['小便', 'pee'], ['混合', 'mix']];
 export const DIAPER_AMOUNTS = [['不选择', ''], ['少', 'little'], ['中', 'mid'], ['多', 'much']];
 export const DIAPER_COLORS = [['不选择', ''], ['黄色', 'yellow'], ['黄绿色', 'yellowgreen'], ['深绿色', 'darkgreen'], ['绿色', 'green'], ['棕色', 'brown'], ['黑色', 'black'], ['红色', 'red']];

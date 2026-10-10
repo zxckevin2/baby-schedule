@@ -9,6 +9,8 @@ import * as notes from './ui/notes.js';
 import * as charts from './ui/charts.js';
 import * as mine from './ui/mine.js';
 import * as sleep from './ui/sleep.js';
+import * as share from './ui/share.js';
+import * as sync from './cloud/sync.js';
 import { applyTheme, watchSystemTheme } from './theme.js';
 import { dateLabel, toast } from './util.js';
 
@@ -26,6 +28,8 @@ async function boot() {
   charts.mount(document.getElementById('page-charts'));
   mine.mount(document.getElementById('page-mine'));
   sleep.mount();
+  share.mount();
+  sync.onSync(() => { record.render(); });
 
   document.getElementById('headerDate').textContent =
     dateLabel() + (st.baby && st.baby.name ? ' · ' + st.baby.name : '');
@@ -74,6 +78,10 @@ async function boot() {
   audio.init(store.getState().settings).catch(() => { });
   notifications.syncAll(store.getState());
   widget.update();
+
+  // 云同步：启动时恢复
+  sync.resume();
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) sync.resume(); });
 
   if (st._autoSwitched) {
     const name = st._autoSwitched;

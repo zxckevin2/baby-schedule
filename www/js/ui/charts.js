@@ -77,7 +77,7 @@ function renderFeeding() {
 function renderDay() {
   const recs = store.recordsOf(viewDate);
   const canvasWrap = h('div', { class: 'chart-card' });
-  canvasWrap.appendChild(h('div', { class: 'cc-title', text: '24 小时时间轴' }));
+  canvasWrap.appendChild(h('div', { class: 'cc-title', text: '⏱️ 24 小时时间轴' }));
   const canvas = h('canvas');
   canvasWrap.appendChild(canvas);
   root.appendChild(canvasWrap);
@@ -108,7 +108,7 @@ function renderWeek() {
     days.push({ date: ds, recs: store.recordsOf(ds) });
   }
   const canvasWrap = h('div', { class: 'chart-card' });
-  canvasWrap.appendChild(h('div', { class: 'cc-title', text: '每日奶量与睡眠' }));
+  canvasWrap.appendChild(h('div', { class: 'cc-title', text: '📊 每日奶量与睡眠' }));
   const canvas = h('canvas');
   canvasWrap.appendChild(canvas);
   root.appendChild(canvasWrap);
@@ -122,7 +122,7 @@ function renderWeek() {
 function renderPattern() {
   root.appendChild(dateNav());
   const canvasWrap = h('div', { class: 'chart-card' });
-  canvasWrap.appendChild(h('div', { class: 'cc-title', text: '一周作息分布（0–24 时）' }));
+  canvasWrap.appendChild(h('div', { class: 'cc-title', text: '🗓️ 一周作息分布（0–24 时）' }));
   const canvas = h('canvas');
   canvasWrap.appendChild(canvas);
   root.appendChild(canvasWrap);
@@ -136,8 +136,8 @@ function renderPattern() {
 
 /* ---------------- 成长趋势（Phase 3） ---------------- */
 function renderGrowth() {
-  root.appendChild(h('div', { class: 'chart-card' }, h('div', { class: 'cc-title', text: '成长趋势' }),
-    h('div', { class: 'empty', text: '身高 / 体重 / 头围 生长曲线 —— 即将上线' })));
+  root.appendChild(h('div', { class: 'chart-card' }, h('div', { class: 'cc-title', text: '📏 成长趋势' }),
+    h('div', { class: 'empty', text: '📈 身高 / 体重 / 头围 生长曲线 —— 即将上线' })));
 }
 
 /* ---------------- 卡片 ---------------- */

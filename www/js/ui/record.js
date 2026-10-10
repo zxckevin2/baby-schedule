@@ -3,6 +3,7 @@
 import { h, fullDateLabel, todayStr, ageLabel } from '../util.js';
 import * as store from '../store.js';
 import * as haptics from '../haptics.js';
+import * as sync from '../cloud/sync.js';
 import { openForm } from './recordForm.js';
 import { TYPES, typeMeta, timeStr, agoLabel, gapMin, orderByType, summarize, recordTitle, recordDetail, recordRight } from '../records.js';
 
@@ -41,7 +42,7 @@ function summaryBar(recs) {
   if (s.diaper.count) chips.push(`💩 ${s.diaper.count}次`);
   if (s.supplement.count) chips.push(`💊 ${s.supplement.count}次`);
   const wrap = h('div', { class: 'rec-summary' });
-  if (!chips.length) wrap.appendChild(h('span', { class: 'rec-sum-chip', text: '今天还没有记录，点下面快捷按钮开始' }));
+  if (!chips.length) wrap.appendChild(h('span', { class: 'rec-sum-chip', text: '今天还没有记录，点下面的按钮开始吧 🍼' }));
   else chips.forEach((c) => wrap.appendChild(h('span', { class: 'rec-sum-chip', text: c })));
   return wrap;
 }
@@ -55,7 +56,7 @@ function fmt(min) {
 function timeline(recs) {
   const wrap = h('div', { class: 'rec-timeline' });
   if (!recs.length) {
-    wrap.appendChild(h('div', { class: 'empty', text: '今天还没有记录' }));
+    wrap.appendChild(h('div', { class: 'empty', text: '🌱 今天还没有记录' }));
     return wrap;
   }
   // 预先算每类型的升序，用于间隔
@@ -96,7 +97,8 @@ function quickBar() {
     btn.addEventListener('click', () => {
       haptics.tap();
       if (t.key === 'sleep' && ongoing) {
-        store.updateRecord(ongoing.id, { endTs: Date.now() });
+        store.updateRecord(ongoing.uid, { endTs: Date.now() });
+        sync.schedulePush();
         render();
         return;
       }
