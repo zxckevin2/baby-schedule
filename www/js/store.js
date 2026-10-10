@@ -330,9 +330,18 @@ function tsToDate(ts) {
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 }
 
+function recInDate(r, dateStr) {
+  if (r.type === 'sleep' && r.endTs) {
+    const dayStart = new Date(dateStr + 'T00:00:00').getTime();
+    const dayEnd = dayStart + 86400000;
+    return r.startTs < dayEnd && r.endTs > dayStart;
+  }
+  return tsToDate(r.startTs) === dateStr;
+}
+
 export function recordsOf(dateStr) {
   return Object.values(state.records)
-    .filter((r) => !r.deleted && tsToDate(r.startTs) === dateStr)
+    .filter((r) => !r.deleted && recInDate(r, dateStr))
     .sort((a, b) => b.startTs - a.startTs);
 }
 

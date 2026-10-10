@@ -171,6 +171,7 @@ function fmtMin(min) {
 function drawTimeline(canvas, dateStr, recs) {
   const w = canvas.parentElement.clientWidth - 24;
   const hCss = 96;
+  if (w <= 40) return;
   const ctx = setupCanvas(canvas, w, hCss);
   const dark = isDark();
   ctx.clearRect(0, 0, w, hCss);
@@ -218,6 +219,7 @@ function drawTimeline(canvas, dateStr, recs) {
 function drawWeekBars(canvas, days) {
   const w = canvas.parentElement.clientWidth - 24;
   const hCss = 200;
+  if (w <= 40) return;
   const ctx = setupCanvas(canvas, w, hCss);
   const dark = isDark();
   ctx.clearRect(0, 0, w, hCss);
@@ -252,6 +254,7 @@ function drawWeekBars(canvas, days) {
 function drawPattern(canvas, days) {
   const w = canvas.parentElement.clientWidth - 24;
   const hCss = 340;
+  if (w <= 40) return;
   const ctx = setupCanvas(canvas, w, hCss);
   const dark = isDark();
   ctx.clearRect(0, 0, w, hCss);

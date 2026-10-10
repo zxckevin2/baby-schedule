@@ -1,11 +1,12 @@
-// 云同步（腾讯云开发 CloudBase · PostgreSQL / PostgREST 模式）
-// 匿名登录 → 家庭组 → 记录同步 → 动态。未配置时全部安全空转。
+﻿// 云同步（腾讯云开发 CloudBase · PostgreSQL / PostgREST 模式）
+// 匿名登录 → 家庭组 → 记录同步（实时推送 + 轮询兜底）→ 动态。未配置时安全空转。
 
 import * as store from '../store.js';
 import { CLOUD } from './config.js';
 
 let app = null, auth = null, db = null, initPromise = null;
 let pollTimer = null;
+let channel = null;
 let listeners = [];
 let pushTimer = null;
 
@@ -79,6 +80,7 @@ export async function createRoom(roomName, memberName) {
   await addMember(roomId, memberName);
   await addLog('创建了家庭共享');
   await fullSync();
+  startRealtime();
   startPolling();
   return { roomId, inviteCode };
 }
@@ -95,12 +97,14 @@ export async function joinRoom(inviteCode, memberName) {
   await addMember(room.id, memberName);
   await addLog('加入了家庭共享');
   await fullSync();
+  startRealtime();
   startPolling();
   return room;
 }
 
 export async function leaveRoom() {
   stopPolling();
+  stopRealtime();
   store.setCloud({ roomId: '', roomName: '', inviteCode: '', joinedAt: 0 });
 }
 
@@ -194,16 +198,35 @@ export async function fullSync() {
 export function schedulePush() {
   if (!joined()) return;
   if (pushTimer) clearTimeout(pushTimer);
-  pushTimer = setTimeout(() => { pushTimer = null; fullSync().catch(() => { }); }, 1500);
+  pushTimer = setTimeout(() => { pushTimer = null; fullSync().catch(() => { }); }, 1200);
 }
 
 export function startPolling() {
   stopPolling();
-  pollTimer = setInterval(() => { if (!document.hidden) pullRecords().then((ch) => { if (ch) emit(); }).catch(() => { }); }, 12000);
+  pollTimer = setInterval(() => { if (!document.hidden) pullRecords().then((ch) => { if (ch) emit(); }).catch(() => { }); }, 5000);
 }
 export function stopPolling() { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
 
+// PostgreSQL 实时推送（Postgres CDC）
+export function startRealtime() {
+  stopRealtime();
+  const c = store.getState().cloud;
+  if (!CLOUD.realtime) return;
+  if (!c.roomId || !app || typeof app.realtime !== 'function') return;
+  try {
+    const rt = app.realtime();
+    channel = rt.channel('room-' + c.roomId)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'records', filter: 'room_id=eq.' + c.roomId }, (payload) => {
+        const row = payload && (payload.new || payload.record);
+        if (row && row.uid) { if (store.upsertRecords([rowToRec(row)])) emit(); }
+        else { pullRecords().then((ch) => { if (ch) emit(); }).catch(() => { }); }
+      })
+      .subscribe();
+  } catch (e) { console.warn('realtime failed', e); }
+}
+export function stopRealtime() { if (channel) { try { channel.unsubscribe(); } catch (e) { } channel = null; } }
+
 export async function resume() {
   if (!joined()) return;
-  try { await ensureAuth(); await fullSync(); startPolling(); } catch (e) { }
+  try { await ensureAuth(); await fullSync(); startRealtime(); startPolling(); } catch (e) { }
 }
